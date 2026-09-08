@@ -1,0 +1,12 @@
+name = "nogomet-prevozi"
+main = "src/worker.js"
+compatibility_date = "2026-09-08"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[kv_namespaces]]
+binding = "WEEKS_KV"
+id = "d15280c565574185943925cb12e177c8"

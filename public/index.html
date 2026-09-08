@@ -101,6 +101,31 @@
     fill:var(--pitch-dark);
     letter-spacing:0.02em;
   }
+  #route-car-pulse{transform-box:fill-box;transform-origin:center;}
+  #route-car.live #route-car-pulse{animation:route-pulse 1.6s ease-out infinite;}
+  @keyframes route-pulse{
+    0%{transform:scale(0.4);opacity:0.6;}
+    100%{transform:scale(2.6);opacity:0;}
+  }
+  .live-status{
+    margin-top:10px;
+    font-size:12px;
+    font-weight:600;
+    color:var(--amber-dark);
+  }
+  .share-btn{
+    border:1px solid var(--amber);
+    background:none;
+    color:var(--amber-dark);
+    font-size:13px;
+    font-weight:600;
+    padding:9px 14px;
+    min-height:38px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .share-btn:hover{background:var(--amber);color:#fff;}
+  .share-btn.sharing{background:var(--amber);color:#fff;}
 
   .weeknav{
     display:flex;
@@ -319,12 +344,13 @@
     <svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pot od Rečice ob Savinji do Mozirja">
       <path d="M0,190 L0,150 C90,120 150,150 230,130 C320,108 380,140 470,118 C540,102 590,120 640,105 L640,190 Z" fill="#CFE8D6"/>
       <path d="M0,190 L0,168 C100,145 190,168 280,150 C370,132 450,158 540,140 C580,132 610,145 640,138 L640,190 Z" fill="#03A74E" opacity="0.85"/>
-      <path d="M55,150 C160,118 220,70 330,90 C440,110 480,60 585,48"
+      <path id="route-line" d="M55,150 C160,118 220,70 330,90 C440,110 480,60 585,48"
             fill="none" stroke="#033765" stroke-width="13" stroke-linecap="round"/>
       <path d="M55,150 C160,118 220,70 330,90 C440,110 480,60 585,48"
             fill="none" stroke="#FCFEFF" stroke-width="2.5" stroke-dasharray="9,10" stroke-linecap="round"/>
 
-      <g transform="translate(298,68) rotate(-16)">
+      <g id="route-car" transform="translate(298,68) rotate(-16)">
+        <circle id="route-car-pulse" cx="0" cy="0" r="10" fill="none" stroke="#03A74E" stroke-width="3" opacity="0"/>
         <rect x="-19" y="-9" width="38" height="16" rx="4" fill="#03A74E"/>
         <rect x="-12" y="-16" width="20" height="10" rx="3" fill="#03A74E"/>
         <circle cx="-10" cy="8" r="5" fill="#033765"/>
@@ -345,6 +371,7 @@
       </g>
       <text x="585" y="16" text-anchor="middle" class="place">MOZIRJE</text>
     </svg>
+    <div class="live-status" id="live-status" hidden></div>
   </div>
 
   <div id="content">Nalagam …</div>
@@ -398,6 +425,146 @@ let editing = null; // {dayKey, slotKey}
 let weekData = null;
 let loading = true;
 let errorMsg = "";
+
+const ROUTE_START = { lat: 46.32472, lon: 14.92278 }; // Rečica ob Savinji
+const ROUTE_END   = { lat: 46.33806, lon: 14.95722 }; // Mozirje
+let sharing = null; // { dayKey, slotKey, watchId }
+
+function haversine(a, b){
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const h = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function routeFraction(lat, lon){
+  const total = haversine(ROUTE_START, ROUTE_END);
+  const fromStart = haversine(ROUTE_START, { lat, lon });
+  return Math.max(0, Math.min(1, fromStart / total));
+}
+
+function todaysDayKey(){
+  const today = new Date();
+  const todayMidnight = new Date(today);
+  todayMidnight.setHours(0,0,0,0);
+  if(isoKey(mondayOf(today)) !== isoKey(currentMonday)) return null;
+  const diffDays = Math.round((todayMidnight - currentMonday) / 86400000);
+  if(diffDays === 0) return "pon";
+  if(diffDays === 3) return "cet";
+  return null;
+}
+
+function locationKey(dayKey, slotKey){
+  return "loc:" + isoKey(currentMonday) + ":" + dayKey + ":" + slotKey;
+}
+
+function toggleShareLocation(dayKey, slotKey){
+  if(sharing && sharing.dayKey === dayKey && sharing.slotKey === slotKey){
+    stopSharing();
+  } else {
+    startSharing(dayKey, slotKey);
+  }
+}
+
+function startSharing(dayKey, slotKey){
+  if(!navigator.geolocation){
+    errorMsg = "Ta brskalnik ne podpira deljenja lokacije.";
+    render();
+    return;
+  }
+  if(sharing) stopSharing();
+  const key = locationKey(dayKey, slotKey);
+  const watchId = navigator.geolocation.watchPosition(
+    pos => {
+      errorMsg = "";
+      postLocation(key, pos.coords.latitude, pos.coords.longitude);
+    },
+    (err) => {
+      if(err.code === err.PERMISSION_DENIED){
+        errorMsg = "Deljenje lokacije ni uspelo. Preveri dovoljenja za lokacijo.";
+        stopSharing();
+      } else {
+        errorMsg = "Trenutno ni mogoče dobiti lokacije, poskušam znova …";
+        render();
+      }
+    },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+  );
+  sharing = { dayKey, slotKey, watchId };
+  errorMsg = "";
+  render();
+}
+
+function stopSharing(){
+  if(sharing){
+    navigator.geolocation.clearWatch(sharing.watchId);
+    const key = locationKey(sharing.dayKey, sharing.slotKey);
+    fetch("/api/location?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(()=>{});
+    sharing = null;
+  }
+  render();
+}
+
+async function postLocation(key, lat, lon){
+  try{
+    await fetch("/api/location", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, lat, lon })
+    });
+  }catch(e){ /* transient network error while driving, next update will retry */ }
+}
+
+async function pollActiveLocation(){
+  const dayKey = todaysDayKey();
+  if(!dayKey || !weekData){ setCarLive(null); return; }
+  const day = weekData[dayKey];
+  const candidates = ["tja","nazaj"].filter(sk => day[sk] && day[sk].parent);
+  if(candidates.length === 0){ setCarLive(null); return; }
+
+  let best = null;
+  for(const sk of candidates){
+    try{
+      const res = await fetch("/api/location?key=" + encodeURIComponent(locationKey(dayKey, sk)));
+      if(!res.ok) continue;
+      const data = await res.json();
+      if(data && data.value){
+        const loc = JSON.parse(data.value);
+        if(!best || loc.ts > best.loc.ts) best = { sk, loc, parent: day[sk].parent };
+      }
+    }catch(e){ /* ignore, try again next poll */ }
+  }
+  setCarLive(best);
+}
+
+function setCarLive(info){
+  const car = document.getElementById("route-car");
+  const status = document.getElementById("live-status");
+  const pathEl = document.getElementById("route-line");
+  if(!car || !status || !pathEl) return;
+
+  if(!info){
+    car.setAttribute("transform", "translate(298,68) rotate(-16)");
+    car.classList.remove("live");
+    status.hidden = true;
+    return;
+  }
+
+  const total = pathEl.getTotalLength();
+  const frac = routeFraction(info.loc.lat, info.loc.lon);
+  const p1 = pathEl.getPointAtLength(frac * total);
+  const p2 = pathEl.getPointAtLength(Math.min(total, frac * total + 1));
+  const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+
+  car.setAttribute("transform", `translate(${p1.x},${p1.y}) rotate(${angle})`);
+  car.classList.add("live");
+
+  const secondsAgo = Math.max(0, Math.round((Date.now() - info.loc.ts) / 1000));
+  status.hidden = false;
+  status.textContent = `🔴 V živo — ${info.parent} (${info.sk === "tja" ? "vožnja tja" : "vožnja nazaj"}), posodobljeno pred ${secondsAgo} s`;
+}
 
 function emptySlot(){
   return { parent:"", contact:"", kids:[true,true,true], note:"" };
@@ -482,9 +649,10 @@ function submitForm(dayKey, slotKey){
   saveWeek();
 }
 
-function slotView(day, dayKey, slotKey, label, time){
+function slotView(day, dayKey, slotKey, label, time, liveEligible){
   const s = day[slotKey];
   const isEditing = editing && editing.dayKey === dayKey && editing.slotKey === slotKey;
+  const isSharingThis = sharing && sharing.dayKey === dayKey && sharing.slotKey === slotKey;
 
   let inner;
   if(isEditing){
@@ -517,6 +685,11 @@ function slotView(day, dayKey, slotKey, label, time){
           ${s.note ? `<div class="note">${escapeHtml(s.note)}</div>` : ""}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;">
+          ${liveEligible ? `
+            <button class="share-btn ${isSharingThis ? "sharing" : ""}" onclick="toggleShareLocation('${dayKey}','${slotKey}')">
+              ${isSharingThis ? "⏹ Ustavi deljenje" : "📍 Deli lokacijo"}
+            </button>
+          ` : ""}
           <button class="edit-btn" onclick="startEdit('${dayKey}','${slotKey}')">Uredi</button>
           <button class="clear-btn" onclick="clearSlot('${dayKey}','${slotKey}')">Izbriši</button>
         </div>
@@ -545,6 +718,7 @@ function slotView(day, dayKey, slotKey, label, time){
 function dayView(dayDef, idx){
   const day = weekData[dayDef.key];
   const date = addDays(currentMonday, dayDef.key === "pon" ? 0 : 3);
+  const liveEligible = todaysDayKey() === dayDef.key;
   return `
     <div class="day ${dayDef.cls} ${day.cancelled ? "cancelled" : ""}">
       <div class="day-head">
@@ -561,8 +735,8 @@ function dayView(dayDef, idx){
           Trening odpade${day.cancelReason ? ": " + escapeHtml(day.cancelReason) : "."}
         </div>
       ` : ""}
-      ${slotView(day, dayDef.key, "tja", "Vožnja TJA", "16:00")}
-      ${slotView(day, dayDef.key, "nazaj", "Vožnja NAZAJ", "17:00")}
+      ${slotView(day, dayDef.key, "tja", "Vožnja TJA", "16:00", liveEligible)}
+      ${slotView(day, dayDef.key, "nazaj", "Vožnja NAZAJ", "17:00", liveEligible)}
     </div>
   `;
 }
@@ -598,6 +772,8 @@ function render(){
 }
 
 loadWeek();
+pollActiveLocation();
+setInterval(pollActiveLocation, 6000);
 
 (function(){
   const ball = document.getElementById("bg-ball");

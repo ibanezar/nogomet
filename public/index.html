@@ -460,6 +460,22 @@ function locationKey(dayKey, slotKey){
   return "loc:" + isoKey(currentMonday) + ":" + dayKey + ":" + slotKey;
 }
 
+function myShareableSlots(){
+  try{
+    return JSON.parse(localStorage.getItem("myShareableSlots") || "[]");
+  }catch(e){ return []; }
+}
+function markAsMine(dayKey, slotKey){
+  try{
+    const set = new Set(myShareableSlots());
+    set.add(locationKey(dayKey, slotKey));
+    localStorage.setItem("myShareableSlots", JSON.stringify([...set]));
+  }catch(e){ /* localStorage unavailable: the share button just won't offer to this browser */ }
+}
+function isMine(dayKey, slotKey){
+  return myShareableSlots().includes(locationKey(dayKey, slotKey));
+}
+
 function toggleShareLocation(dayKey, slotKey){
   if(sharing && sharing.dayKey === dayKey && sharing.slotKey === slotKey){
     stopSharing();
@@ -646,6 +662,7 @@ function submitForm(dayKey, slotKey){
   }
   weekData[dayKey][slotKey] = { parent, contact, kids, note };
   editing = null;
+  markAsMine(dayKey, slotKey);
   saveWeek();
 }
 
@@ -685,7 +702,7 @@ function slotView(day, dayKey, slotKey, label, time, liveEligible){
           ${s.note ? `<div class="note">${escapeHtml(s.note)}</div>` : ""}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;">
-          ${liveEligible ? `
+          ${(liveEligible && isMine(dayKey, slotKey)) ? `
             <button class="share-btn ${isSharingThis ? "sharing" : ""}" onclick="toggleShareLocation('${dayKey}','${slotKey}')">
               ${isSharingThis ? "⏹ Ustavi deljenje" : "📍 Deli lokacijo"}
             </button>

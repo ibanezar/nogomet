@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#03619F">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -45,12 +46,11 @@
     position:fixed;
     top:0;
     left:0;
-    width:32px;
-    height:32px;
-    z-index:999;
+    width:24px;
+    height:24px;
+    z-index:5;
     pointer-events:none;
-    opacity:0.8;
-    filter:drop-shadow(0 3px 4px rgba(14,32,54,0.35));
+    opacity:0.28;
     will-change:transform;
   }
   #bg-ball svg{display:block;width:100%;height:100%;}
@@ -342,6 +342,23 @@
     font-size:13px;
     padding:8px 10px;
   }
+
+  .absent-row{
+    padding:0 16px 12px;
+    font-size:13px;
+  }
+  .absent-label{color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+  .absent-choices{display:flex;gap:14px;flex-wrap:wrap;}
+  .absent-choices label{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-weight:500;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .absent-choices input{width:19px;height:19px;flex-shrink:0;}
+  .kid-absent{text-decoration:line-through;color:var(--danger);}
 
   .slot{
     border-top:1px solid var(--line);
@@ -724,7 +741,7 @@ function emptySlot(){
   return { parent:"", contact:"", kids:[true,true,true], note:"", confirmed:false, needsReplacement:false, ownerId:"" };
 }
 function emptyDay(){
-  return { cancelled:false, cancelReason:"", tja: emptySlot(), nazaj: emptySlot() };
+  return { cancelled:false, cancelReason:"", absentKids:[false,false,false], tja: emptySlot(), nazaj: emptySlot() };
 }
 function emptyWeek(){
   return { pon: emptyDay(), cet: emptyDay() };
@@ -787,7 +804,7 @@ async function computeNextRide(){
         const slotTime = new Date(date);
         slotTime.setHours(t.h, t.m, 0, 0);
         if(slotTime.getTime() > now.getTime()){
-          return { dayDef, date, slotKey, slot: day[slotKey] };
+          return { dayDef, date, slotKey, slot: day[slotKey], absentKids: day.absentKids };
         }
       }
     }
@@ -804,7 +821,7 @@ function renderNextRide(info){
     return;
   }
 
-  const { dayDef, date, slotKey, slot } = info;
+  const { dayDef, date, slotKey, slot, absentKids } = info;
   const t = SLOT_TIMES[slotKey];
   const timeStr = String(t.h).padStart(2,"0") + ":" + String(t.m).padStart(2,"0");
   const isToday = isoKey(date) === isoKey(new Date());
@@ -818,7 +835,7 @@ function renderNextRide(info){
     else if(slot.confirmed){ statusClass = "confirmed"; statusText = "potrjeno"; }
     body = `
       <div class="next-ride-driver">🚗 ${escapeHtml(slot.parent)} <span class="next-ride-status ${statusClass}">${statusText}</span></div>
-      <div class="next-ride-kids">👦 ${kidsGoing.length ? escapeHtml(kidsGoing.join(" · ")) : "brez otrok"}</div>
+      <div class="next-ride-kids">👦 ${kidsListHtml(kidsGoing, absentKids, " · ")}</div>
       ${slot.contact ? `<div class="next-ride-contact">${escapeHtml(slot.contact)} ${contactLinksHtml(slot.contact)}</div>` : ""}
     `;
   } else {
@@ -867,6 +884,12 @@ function toggleCancelled(dayKey, checked){
 }
 function setCancelReason(dayKey, val){
   weekData[dayKey].cancelReason = val;
+}
+
+function toggleAbsentKid(dayKey, kidIndex, checked){
+  if(!weekData[dayKey].absentKids) weekData[dayKey].absentKids = [false,false,false];
+  weekData[dayKey].absentKids[kidIndex] = checked;
+  saveWeek();
 }
 
 function submitForm(dayKey, slotKey){
@@ -962,7 +985,7 @@ function slotView(day, dayKey, slotKey, label, time, liveEligible){
       <div class="assigned">
         <div>
           <div class="who">${escapeHtml(s.parent)}</div>
-          <div class="kids">${kidsGoing.length ? escapeHtml(kidsGoing.join(", ")) : "brez otrok"}</div>
+          <div class="kids">${kidsListHtml(kidsGoing, day.absentKids, ", ")}</div>
           ${s.contact ? `<div class="contact">${escapeHtml(s.contact)} ${contactLinksHtml(s.contact)}</div>` : ""}
           ${s.note ? `<div class="note">${escapeHtml(s.note)}</div>` : ""}
         </div>
@@ -1021,6 +1044,18 @@ function dayView(dayDef, idx){
           Trening odpade${day.cancelReason ? ": " + escapeHtml(day.cancelReason) : "."}
         </div>
       ` : ""}
+      <div class="absent-row">
+        <div class="absent-label">Ne gre na trening (bolezen ipd.):</div>
+        <div class="absent-choices">
+          ${KIDS.map((k,i) => `
+            <label>
+              <input type="checkbox" ${(day.absentKids && day.absentKids[i]) ? "checked" : ""}
+                onchange="toggleAbsentKid('${dayDef.key}', ${i}, this.checked)">
+              ${k}
+            </label>
+          `).join("")}
+        </div>
+      </div>
       ${slotView(day, dayDef.key, "tja", "Vožnja TJA", "16:00", liveEligible)}
       ${slotView(day, dayDef.key, "nazaj", "Vožnja NAZAJ", "17:00", liveEligible)}
     </div>
@@ -1031,6 +1066,15 @@ function escapeHtml(str){
   return (str||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 function escapeAttr(str){ return escapeHtml(str); }
+
+function kidsListHtml(kidsGoing, absentKids, sep){
+  if(!kidsGoing.length) return "brez otrok";
+  return kidsGoing.map(k => {
+    const idx = KIDS.indexOf(k);
+    const isAbsent = absentKids && absentKids[idx];
+    return isAbsent ? `<span class="kid-absent">${escapeHtml(k)}</span>` : escapeHtml(k);
+  }).join(sep);
+}
 
 function phoneDigits(contact){
   const digits = (contact || "").replace(/[^\d+]/g, "");
@@ -1128,11 +1172,12 @@ setInterval(refreshNextRide, 20000);
   if(!ball) return;
   if(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-  const SIZE = 34;
+  const SIZE = 24;
+  const MIN_Y = 90; // stay clear of the logo/title in the header
   let x = Math.random() * Math.max(1, window.innerWidth - SIZE);
-  let y = Math.random() * Math.max(1, window.innerHeight - SIZE);
-  let vx = (Math.random() < 0.5 ? -1 : 1) * (1.4 + Math.random() * 1.2);
-  let vy = (Math.random() < 0.5 ? -1 : 1) * (1.4 + Math.random() * 1.2);
+  let y = MIN_Y + Math.random() * Math.max(1, window.innerHeight - SIZE - MIN_Y);
+  let vx = (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.5);
+  let vy = (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.5);
   let angle = 0;
 
   function tick(){
@@ -1141,9 +1186,9 @@ setInterval(refreshNextRide, 20000);
     x += vx; y += vy;
     if(x <= 0){ x = 0; vx = Math.abs(vx); }
     else if(x >= maxX){ x = maxX; vx = -Math.abs(vx); }
-    if(y <= 0){ y = 0; vy = Math.abs(vy); }
+    if(y <= MIN_Y){ y = MIN_Y; vy = Math.abs(vy); }
     else if(y >= maxY){ y = maxY; vy = -Math.abs(vy); }
-    angle += (Math.abs(vx) + Math.abs(vy)) * 2.2;
+    angle += (Math.abs(vx) + Math.abs(vy)) * 1.1;
     ball.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg)`;
     requestAnimationFrame(tick);
   }

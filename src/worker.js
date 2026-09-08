@@ -1,3 +1,5 @@
+import { handleAuth } from "./auth.js";
+
 const KEY_RE = /^[A-Za-z0-9:_-]{1,64}$/;
 const LOCATION_TTL_SECONDS = 90; // covers gaps between watchPosition updates; doubles as auto-stop if sharing stops without hitting DELETE
 
@@ -11,6 +13,13 @@ function isValidCoord(lat, lon) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname !== "/login") {
+      const authResponse = await handleAuth(request, env);
+      if (authResponse) return authResponse;
+    } else {
+      return handleAuth(request, env);
+    }
 
     if (url.pathname === "/api/location") {
       const key = url.searchParams.get("key") || "";

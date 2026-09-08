@@ -2,6 +2,15 @@
 <html lang="sl">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#03619F">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Prevozi">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png" type="image/png">
 <title>Prevozi na nogomet</title>
 <style>
   :root{
@@ -17,14 +26,26 @@
     --danger:#B3462C;
   }
   *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
   body{
     margin:0;
     background:var(--sage);
     color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     line-height:1.45;
+    -webkit-tap-highlight-color:transparent;
   }
-  .wrap{max-width:640px;margin:0 auto;padding:28px 18px 60px;}
+  button, input{font-family:inherit;}
+  .wrap{
+    max-width:640px;
+    margin:0 auto;
+    padding:calc(env(safe-area-inset-top) + 20px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 40px) calc(env(safe-area-inset-left) + 16px);
+  }
+  @media (max-width:380px){
+    .wrap{padding-left:12px;padding-right:12px;}
+    header.top h1{font-size:22px;}
+    header.top .route{font-size:13px;}
+  }
 
   header.top{
     border-bottom:2px solid var(--pitch);
@@ -80,11 +101,13 @@
   .weeknav button{
     background:none;
     border:none;
-    font-size:18px;
+    font-size:20px;
     color:var(--pitch);
     cursor:pointer;
-    padding:4px 10px;
+    padding:10px 16px;
     font-weight:700;
+    min-width:44px;
+    min-height:44px;
   }
   .weeknav button:hover{color:var(--amber-dark);}
   .weeknav .label{font-size:14px;font-weight:600;color:var(--ink);}
@@ -94,7 +117,8 @@
     color:var(--ink-soft);
     background:none;
     border:1px solid var(--line);
-    padding:4px 9px;
+    padding:8px 12px;
+    min-height:36px;
   }
 
   .day{
@@ -130,7 +154,8 @@
     gap:8px;
     font-size:13px;
   }
-  .cancel-row input{margin:0;}
+  .cancel-row input{margin:0;width:19px;height:19px;flex-shrink:0;}
+  .cancel-row label{cursor:pointer;}
   .cancel-reason{
     flex:1;
     border:none;
@@ -177,9 +202,10 @@
     border:1px solid var(--pitch);
     background:none;
     color:var(--pitch);
-    font-size:12px;
+    font-size:13px;
     font-weight:600;
-    padding:5px 10px;
+    padding:9px 14px;
+    min-height:38px;
     cursor:pointer;
     white-space:nowrap;
   }
@@ -204,10 +230,10 @@
   }
   .form input[type=text]{
     width:100%;
-    padding:7px 8px;
+    padding:10px 10px;
     border:1px solid var(--line);
     background:#fff;
-    font-size:14px;
+    font-size:16px;
     color:var(--ink);
     font-family:inherit;
   }
@@ -215,12 +241,14 @@
   .kids-choices label{
     display:flex;
     align-items:center;
-    gap:6px;
-    font-size:14px;
+    gap:7px;
+    font-size:15px;
     font-weight:500;
     color:var(--ink);
     margin:0;
+    cursor:pointer;
   }
+  .kids-choices input{width:19px;height:19px;flex-shrink:0;}
   .form-actions{
     display:flex;
     gap:8px;
@@ -230,19 +258,21 @@
     background:var(--pitch);
     color:#fff;
     border:none;
-    padding:8px 16px;
-    font-size:13px;
+    padding:11px 16px;
+    font-size:14px;
     font-weight:700;
     cursor:pointer;
+    flex:1;
   }
   .save-btn:hover{background:var(--pitch-dark);}
   .cancel-edit-btn{
     background:none;
     border:1px solid var(--line);
     color:var(--ink-soft);
-    padding:8px 14px;
-    font-size:13px;
+    padding:11px 14px;
+    font-size:14px;
     cursor:pointer;
+    flex:1;
   }
 
   .status{

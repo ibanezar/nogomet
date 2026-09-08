@@ -127,6 +127,44 @@
   .share-btn:hover{background:var(--amber);color:#fff;}
   .share-btn.sharing{background:var(--amber);color:#fff;}
 
+  .ride-status-row{
+    margin-top:12px;
+    padding-top:10px;
+    border-top:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .ride-status{font-size:13px;font-weight:600;}
+  .ride-status.pending{color:var(--ink-soft);}
+  .ride-status.confirmed{color:var(--amber-dark);}
+  .ride-status.needs-replacement{color:var(--danger);}
+  .ride-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .confirm-btn, .takeover-btn{
+    background:var(--amber);
+    color:#fff;
+    border:none;
+    padding:9px 14px;
+    min-height:38px;
+    font-size:13px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .confirm-btn:hover, .takeover-btn:hover{background:var(--amber-dark);}
+  .replace-btn{
+    background:none;
+    border:1px solid var(--danger);
+    color:var(--danger);
+    padding:9px 14px;
+    min-height:38px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .replace-btn:hover{background:var(--danger);color:#fff;}
+
   .weeknav{
     display:flex;
     align-items:center;
@@ -460,20 +498,20 @@ function locationKey(dayKey, slotKey){
   return "loc:" + isoKey(currentMonday) + ":" + dayKey + ":" + slotKey;
 }
 
-function myShareableSlots(){
+function getClientId(){
   try{
-    return JSON.parse(localStorage.getItem("myShareableSlots") || "[]");
-  }catch(e){ return []; }
-}
-function markAsMine(dayKey, slotKey){
-  try{
-    const set = new Set(myShareableSlots());
-    set.add(locationKey(dayKey, slotKey));
-    localStorage.setItem("myShareableSlots", JSON.stringify([...set]));
-  }catch(e){ /* localStorage unavailable: the share button just won't offer to this browser */ }
+    let id = localStorage.getItem("clientId");
+    if(!id){
+      id = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(16).slice(2)));
+      localStorage.setItem("clientId", id);
+    }
+    return id;
+  }catch(e){ return null; }
 }
 function isMine(dayKey, slotKey){
-  return myShareableSlots().includes(locationKey(dayKey, slotKey));
+  const s = weekData && weekData[dayKey] && weekData[dayKey][slotKey];
+  const myId = getClientId();
+  return !!s && !!s.ownerId && !!myId && s.ownerId === myId;
 }
 
 function toggleShareLocation(dayKey, slotKey){
@@ -583,7 +621,7 @@ function setCarLive(info){
 }
 
 function emptySlot(){
-  return { parent:"", contact:"", kids:[true,true,true], note:"" };
+  return { parent:"", contact:"", kids:[true,true,true], note:"", confirmed:false, needsReplacement:false, ownerId:"" };
 }
 function emptyDay(){
   return { cancelled:false, cancelReason:"", tja: emptySlot(), nazaj: emptySlot() };
@@ -660,9 +698,28 @@ function submitForm(dayKey, slotKey){
     render();
     return;
   }
-  weekData[dayKey][slotKey] = { parent, contact, kids, note };
+  weekData[dayKey][slotKey] = {
+    parent, contact, kids, note,
+    confirmed: false,
+    needsReplacement: false,
+    ownerId: getClientId()
+  };
   editing = null;
-  markAsMine(dayKey, slotKey);
+  saveWeek();
+}
+
+function confirmRide(dayKey, slotKey){
+  weekData[dayKey][slotKey].confirmed = true;
+  weekData[dayKey][slotKey].needsReplacement = false;
+  saveWeek();
+}
+function requestReplacement(dayKey, slotKey){
+  weekData[dayKey][slotKey].confirmed = false;
+  weekData[dayKey][slotKey].needsReplacement = true;
+  saveWeek();
+}
+function cancelReplacement(dayKey, slotKey){
+  weekData[dayKey][slotKey].needsReplacement = false;
   saveWeek();
 }
 
@@ -693,6 +750,33 @@ function slotView(day, dayKey, slotKey, label, time, liveEligible){
     `;
   } else if(s.parent){
     const kidsGoing = KIDS.filter((_,i)=>s.kids[i]!==false);
+    const isOwner = isMine(dayKey, slotKey);
+
+    let statusHtml;
+    if(s.needsReplacement){
+      statusHtml = `<div class="ride-status needs-replacement">⚠ Voznik ne more peljati — išče zamenjavo</div>`;
+    } else if(s.confirmed){
+      statusHtml = `<div class="ride-status confirmed">✓ Vožnja potrjena</div>`;
+    } else {
+      statusHtml = `<div class="ride-status pending">⚠ Voznik še ni potrdil vožnje</div>`;
+    }
+
+    let rideActions = "";
+    if(isOwner){
+      if(s.needsReplacement){
+        rideActions = `<button class="confirm-btn" onclick="cancelReplacement('${dayKey}','${slotKey}')">Prekliči iskanje zamenjave</button>`;
+      } else if(!s.confirmed){
+        rideActions = `
+          <button class="confirm-btn" onclick="confirmRide('${dayKey}','${slotKey}')">✓ Potrdi vožnjo</button>
+          <button class="replace-btn" onclick="requestReplacement('${dayKey}','${slotKey}')">Ne morem voziti</button>
+        `;
+      } else {
+        rideActions = `<button class="replace-btn" onclick="requestReplacement('${dayKey}','${slotKey}')">Ne morem voziti</button>`;
+      }
+    } else if(s.needsReplacement){
+      rideActions = `<button class="takeover-btn" onclick="startEdit('${dayKey}','${slotKey}')">🙋 Prevzamem vožnjo</button>`;
+    }
+
     inner = `
       <div class="assigned">
         <div>
@@ -702,7 +786,7 @@ function slotView(day, dayKey, slotKey, label, time, liveEligible){
           ${s.note ? `<div class="note">${escapeHtml(s.note)}</div>` : ""}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;">
-          ${(liveEligible && isMine(dayKey, slotKey)) ? `
+          ${(liveEligible && isOwner) ? `
             <button class="share-btn ${isSharingThis ? "sharing" : ""}" onclick="toggleShareLocation('${dayKey}','${slotKey}')">
               ${isSharingThis ? "⏹ Ustavi deljenje" : "📍 Deli lokacijo"}
             </button>
@@ -710,6 +794,10 @@ function slotView(day, dayKey, slotKey, label, time, liveEligible){
           <button class="edit-btn" onclick="startEdit('${dayKey}','${slotKey}')">Uredi</button>
           <button class="clear-btn" onclick="clearSlot('${dayKey}','${slotKey}')">Izbriši</button>
         </div>
+      </div>
+      <div class="ride-status-row">
+        ${statusHtml}
+        ${rideActions ? `<div class="ride-actions">${rideActions}</div>` : ""}
       </div>
     `;
   } else {

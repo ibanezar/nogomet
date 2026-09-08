@@ -88,6 +88,99 @@
   }
   header.top .route b{color:var(--ink);font-weight:600;}
 
+  .next-ride-card{
+    margin-bottom:22px;
+    background:var(--pitch-dark);
+    color:#fff;
+    padding:16px 18px;
+  }
+  .next-ride-head{
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    text-transform:uppercase;
+    opacity:0.85;
+    margin-bottom:8px;
+  }
+  .next-ride-driver{
+    font-size:19px;
+    font-weight:800;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .next-ride-driver.empty{opacity:0.75;font-weight:600;}
+  .next-ride-kids{font-size:14px;opacity:0.85;margin-top:4px;}
+  .next-ride-contact{font-size:14px;opacity:0.85;margin-top:4px;display:flex;align-items:center;gap:6px;}
+  .next-ride-contact .contact-link{filter:brightness(0) invert(1);}
+  .next-ride-status{
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    padding:3px 8px;
+    border-radius:2px;
+  }
+  .next-ride-status.pending{background:rgba(255,255,255,0.18);}
+  .next-ride-status.confirmed{background:var(--amber);}
+  .next-ride-status.needs-replacement{background:var(--danger);}
+  .next-ride-empty{font-size:15px;opacity:0.85;}
+
+  .week-overview{
+    background:var(--chalk);
+    border:1px solid var(--line);
+    margin-bottom:18px;
+    padding:14px 16px;
+  }
+  .week-overview-title{
+    font-size:12px;
+    font-weight:700;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:0.02em;
+    margin-bottom:8px;
+  }
+  .week-overview-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:7px 0;
+    border-top:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  .week-overview-row:first-of-type{border-top:none;}
+  .week-overview-day{
+    font-size:12px;
+    font-weight:700;
+    color:var(--pitch-dark);
+    width:60px;
+    flex-shrink:0;
+    text-transform:uppercase;
+  }
+  .week-overview-driver{font-size:14px;font-weight:600;flex:1;}
+  .week-overview-row.empty .week-overview-driver{color:var(--ink-soft);font-weight:500;}
+  .week-overview-row .next-ride-status.pending{background:var(--line);color:var(--ink-soft);}
+  .week-overview-row .next-ride-status.confirmed,
+  .week-overview-row .next-ride-status.needs-replacement{color:#fff;}
+  .week-counts{
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px solid var(--line);
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .week-count-chip{
+    background:var(--sage);
+    border:1px solid var(--line);
+    font-size:12px;
+    font-weight:600;
+    color:var(--ink);
+    padding:4px 10px;
+    border-radius:12px;
+  }
+
   .route-art{
     margin-bottom:22px;
     background:var(--chalk);
@@ -271,8 +364,14 @@
   }
   .assigned .who{font-size:15px;font-weight:600;}
   .assigned .kids{font-size:13px;color:var(--ink-soft);margin-top:2px;}
-  .assigned .contact{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .assigned .contact{font-size:12px;color:var(--ink-soft);margin-top:2px;display:flex;align-items:center;gap:6px;}
   .assigned .note{font-size:12px;color:var(--amber-dark);margin-top:4px;font-style:italic;}
+  .contact-link{
+    text-decoration:none;
+    font-size:15px;
+    line-height:1;
+    padding:4px;
+  }
 
   .edit-btn, .signup-btn, .clear-btn{
     border:1px solid var(--pitch);
@@ -378,6 +477,7 @@
       <div class="route">Rečica ob Savinji <b>→</b> Mozirje &nbsp;·&nbsp; Izak, Nace, Žak</div>
     </div>
   </header>
+  <div class="next-ride-card" id="next-ride">Nalagam …</div>
   <div class="route-art">
     <svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pot od Rečice ob Savinji do Mozirja">
       <path d="M0,190 L0,150 C90,120 150,150 230,130 C320,108 380,140 470,118 C540,102 590,120 640,105 L640,190 Z" fill="#CFE8D6"/>
@@ -653,6 +753,87 @@ async function saveWeek(){
     errorMsg = "Shranjevanje ni uspelo. Preveri povezavo in poskusi znova.";
   }
   render();
+  refreshNextRide();
+}
+
+const SLOT_TIMES = { tja: { h: 16, m: 0, label: "Vožnja TJA" }, nazaj: { h: 17, m: 0, label: "Vožnja NAZAJ" } };
+
+async function fetchWeekDataFor(monday){
+  try{
+    const res = await fetch("/api/week?key=" + encodeURIComponent("week:" + isoKey(monday)));
+    if(!res.ok) return emptyWeek();
+    const data = await res.json();
+    return (data && data.value) ? JSON.parse(data.value) : emptyWeek();
+  }catch(e){ return emptyWeek(); }
+}
+
+async function computeNextRide(){
+  const now = new Date();
+  const thisMonday = mondayOf(now);
+  const mondaysToCheck = [thisMonday, addDays(thisMonday, 7)];
+
+  for(const monday of mondaysToCheck){
+    const wd = (weekData && isoKey(monday) === isoKey(currentMonday))
+      ? weekData
+      : await fetchWeekDataFor(monday);
+
+    for(const dayDef of DAYS){
+      const day = wd[dayDef.key];
+      if(day.cancelled) continue;
+      const date = addDays(monday, dayDef.key === "pon" ? 0 : 3);
+
+      for(const slotKey of ["tja","nazaj"]){
+        const t = SLOT_TIMES[slotKey];
+        const slotTime = new Date(date);
+        slotTime.setHours(t.h, t.m, 0, 0);
+        if(slotTime.getTime() > now.getTime()){
+          return { dayDef, date, slotKey, slot: day[slotKey] };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function renderNextRide(info){
+  const el = document.getElementById("next-ride");
+  if(!el) return;
+
+  if(!info){
+    el.innerHTML = `<div class="next-ride-empty">Trenutno ni načrtovanih voženj.</div>`;
+    return;
+  }
+
+  const { dayDef, date, slotKey, slot } = info;
+  const t = SLOT_TIMES[slotKey];
+  const timeStr = String(t.h).padStart(2,"0") + ":" + String(t.m).padStart(2,"0");
+  const isToday = isoKey(date) === isoKey(new Date());
+  const dayLabel = isToday ? "Danes" : (dayDef.name + ", " + fmt(date));
+
+  let body;
+  if(slot && slot.parent){
+    const kidsGoing = KIDS.filter((_,i)=>slot.kids[i]!==false);
+    let statusClass = "pending", statusText = "ni potrjeno";
+    if(slot.needsReplacement){ statusClass = "needs-replacement"; statusText = "išče zamenjavo"; }
+    else if(slot.confirmed){ statusClass = "confirmed"; statusText = "potrjeno"; }
+    body = `
+      <div class="next-ride-driver">🚗 ${escapeHtml(slot.parent)} <span class="next-ride-status ${statusClass}">${statusText}</span></div>
+      <div class="next-ride-kids">👦 ${kidsGoing.length ? escapeHtml(kidsGoing.join(" · ")) : "brez otrok"}</div>
+      ${slot.contact ? `<div class="next-ride-contact">${escapeHtml(slot.contact)} ${contactLinksHtml(slot.contact)}</div>` : ""}
+    `;
+  } else {
+    body = `<div class="next-ride-driver empty">🚗 Še ni voznika</div>`;
+  }
+
+  el.innerHTML = `
+    <div class="next-ride-head">${dayLabel} · ${timeStr} — ${t.label}</div>
+    ${body}
+  `;
+}
+
+async function refreshNextRide(){
+  const info = await computeNextRide();
+  renderNextRide(info);
 }
 
 function goWeek(offset){
@@ -735,7 +916,7 @@ function slotView(day, dayKey, slotKey, label, time, liveEligible){
         <label for="f-parent">Kdo pelje</label>
         <input type="text" id="f-parent" value="${escapeAttr(s.parent)}" placeholder="Ime starša">
         <label for="f-contact">Kontakt (neobvezno)</label>
-        <input type="text" id="f-contact" value="${escapeAttr(s.contact)}" placeholder="Telefon">
+        <input type="text" id="f-contact" value="${escapeAttr(s.contact)}" placeholder="npr. +386 41 234 567">
         <label>Kateri otroci gredo</label>
         <div class="kids-choices">
           ${KIDS.map((k,i)=>`<label><input type="checkbox" id="f-kid-${i}" ${s.kids[i]!==false?"checked":""}> ${k}</label>`).join("")}
@@ -782,7 +963,7 @@ function slotView(day, dayKey, slotKey, label, time, liveEligible){
         <div>
           <div class="who">${escapeHtml(s.parent)}</div>
           <div class="kids">${kidsGoing.length ? escapeHtml(kidsGoing.join(", ")) : "brez otrok"}</div>
-          ${s.contact ? `<div class="contact">${escapeHtml(s.contact)}</div>` : ""}
+          ${s.contact ? `<div class="contact">${escapeHtml(s.contact)} ${contactLinksHtml(s.contact)}</div>` : ""}
           ${s.note ? `<div class="note">${escapeHtml(s.note)}</div>` : ""}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;">
@@ -851,6 +1032,65 @@ function escapeHtml(str){
 }
 function escapeAttr(str){ return escapeHtml(str); }
 
+function phoneDigits(contact){
+  const digits = (contact || "").replace(/[^\d+]/g, "");
+  return digits.length >= 6 ? digits : null;
+}
+function contactLinksHtml(contact){
+  const digits = phoneDigits(contact);
+  if(!digits) return "";
+  return `<a class="contact-link" href="tel:${digits}" title="Pokliči">📞</a><a class="contact-link" href="https://wa.me/${digits.replace(/^\+/,"")}" target="_blank" rel="noopener" title="WhatsApp">💬</a>`;
+}
+
+function weekOverviewHtml(){
+  const rows = [];
+  const counts = {};
+
+  for(const dayDef of DAYS){
+    const day = weekData[dayDef.key];
+    if(day.cancelled) continue;
+
+    for(const slotKey of ["tja","nazaj"]){
+      const slot = day[slotKey];
+      const dirLabel = slotKey === "tja" ? "tja" : "nazaj";
+
+      if(slot && slot.parent){
+        counts[slot.parent] = (counts[slot.parent] || 0) + 1;
+        let statusClass = "pending", statusText = "ni potrjeno";
+        if(slot.needsReplacement){ statusClass = "needs-replacement"; statusText = "išče zamenjavo"; }
+        else if(slot.confirmed){ statusClass = "confirmed"; statusText = "potrjeno"; }
+        rows.push(`
+          <div class="week-overview-row">
+            <div class="week-overview-day">${dayDef.name.slice(0,3)} · ${dirLabel}</div>
+            <div class="week-overview-driver">${escapeHtml(slot.parent)}</div>
+            <span class="next-ride-status ${statusClass}">${statusText}</span>
+          </div>
+        `);
+      } else {
+        rows.push(`
+          <div class="week-overview-row empty">
+            <div class="week-overview-day">${dayDef.name.slice(0,3)} · ${dirLabel}</div>
+            <div class="week-overview-driver">Ni voznika</div>
+          </div>
+        `);
+      }
+    }
+  }
+
+  const counters = Object.entries(counts)
+    .sort((a,b) => b[1] - a[1])
+    .map(([name,n]) => `<span class="week-count-chip">${escapeHtml(name)}: ${n}×</span>`)
+    .join("");
+
+  return `
+    <div class="week-overview">
+      <div class="week-overview-title">Ta teden</div>
+      ${rows.join("")}
+      ${counters ? `<div class="week-counts">${counters}</div>` : ""}
+    </div>
+  `;
+}
+
 function render(){
   const content = document.getElementById("content");
   const weekEnd = addDays(currentMonday, 4);
@@ -868,6 +1108,7 @@ function render(){
   if(loading || !weekData){
     html += `<div class="status">Nalagam …</div>`;
   } else {
+    html += weekOverviewHtml();
     html += DAYS.map((d,i)=>dayView(d,i)).join("");
   }
   content.innerHTML = html;
@@ -879,6 +1120,8 @@ function render(){
 loadWeek();
 pollActiveLocation();
 setInterval(pollActiveLocation, 6000);
+refreshNextRide();
+setInterval(refreshNextRide, 20000);
 
 (function(){
   const ball = document.getElementById("bg-ball");

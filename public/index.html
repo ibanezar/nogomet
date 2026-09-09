@@ -897,6 +897,37 @@ function emptyWeek(){
   return { pon: emptyDay(), cet: emptyDay() };
 }
 
+// Normalizes whatever came back from storage against the current schema,
+// filling in anything missing/mistyped (older saves predate fields like
+// confirmed/ownerId/absentKids, and a malformed value should never crash
+// render() — it should just fall back to sane defaults).
+function sanitizeSlot(s){
+  s = (s && typeof s === "object") ? s : {};
+  return {
+    parent: typeof s.parent === "string" ? s.parent : "",
+    contact: typeof s.contact === "string" ? s.contact : "",
+    kids: Array.isArray(s.kids) ? [0,1,2].map(i => s.kids[i] !== false) : [true,true,true],
+    note: typeof s.note === "string" ? s.note : "",
+    confirmed: !!s.confirmed,
+    needsReplacement: !!s.needsReplacement,
+    ownerId: typeof s.ownerId === "string" ? s.ownerId : ""
+  };
+}
+function sanitizeDay(d){
+  d = (d && typeof d === "object") ? d : {};
+  return {
+    cancelled: !!d.cancelled,
+    cancelReason: typeof d.cancelReason === "string" ? d.cancelReason : "",
+    absentKids: Array.isArray(d.absentKids) ? [0,1,2].map(i => !!d.absentKids[i]) : [false,false,false],
+    tja: sanitizeSlot(d.tja),
+    nazaj: sanitizeSlot(d.nazaj)
+  };
+}
+function sanitizeWeek(w){
+  w = (w && typeof w === "object") ? w : {};
+  return { pon: sanitizeDay(w.pon), cet: sanitizeDay(w.cet) };
+}
+
 async function loadWeek(){
   loading = true; errorMsg = ""; render();
   const key = "week:" + isoKey(currentMonday);
@@ -904,7 +935,7 @@ async function loadWeek(){
   try{
     const res = await window.storage.get(key, true);
     dlog(`loadWeek: storage.get(${key}) -> ${res ? "found value" : "empty"}`);
-    weekData = (res && res.value) ? JSON.parse(res.value) : await loadLegacyWeek(key);
+    weekData = (res && res.value) ? sanitizeWeek(JSON.parse(res.value)) : await loadLegacyWeek(key);
   }catch(e){
     dlog(`loadWeek: EXCEPTION ${e.name}: ${e.message}`);
     if(!weekData) weekData = emptyWeek();
@@ -926,7 +957,7 @@ async function loadLegacyWeek(correctKey){
     const legacyRes = await window.storage.get(legacyKey, true);
     dlog(`loadLegacyWeek: storage.get(${legacyKey}) -> ${legacyRes ? "found value" : "empty"}`);
     if(legacyRes && legacyRes.value){
-      const migrated = JSON.parse(legacyRes.value);
+      const migrated = sanitizeWeek(JSON.parse(legacyRes.value));
       // Best-effort write-back, not awaited: a slow/blocked write must
       // never hide data we've already successfully read.
       window.storage.set(correctKey, JSON.stringify(migrated), true).catch(()=>{});
@@ -957,7 +988,7 @@ async function fetchWeekDataFor(monday){
     const res = await fetchTimeout("/api/week?key=" + encodeURIComponent(correctKey));
     if(!res.ok) return emptyWeek();
     const data = await res.json();
-    if(data && data.value) return JSON.parse(data.value);
+    if(data && data.value) return sanitizeWeek(JSON.parse(data.value));
 
     const legacyKey = "week:" + legacyIsoKey(monday);
     if(legacyKey === correctKey) return emptyWeek();
@@ -966,7 +997,7 @@ async function fetchWeekDataFor(monday){
     const legacyData = await legacyRes.json();
     if(!legacyData || !legacyData.value) return emptyWeek();
 
-    const migrated = JSON.parse(legacyData.value);
+    const migrated = sanitizeWeek(JSON.parse(legacyData.value));
     fetchTimeout("/api/week", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1041,8 +1072,14 @@ function renderNextRide(info){
 }
 
 async function refreshNextRide(){
-  const info = await computeNextRide();
-  renderNextRide(info);
+  try{
+    const info = await computeNextRide();
+    renderNextRide(info);
+  }catch(e){
+    dlog(`refreshNextRide: EXCEPTION ${e.name}: ${e.message}`);
+    const el = document.getElementById("next-ride");
+    if(el) el.innerHTML = `<div class="next-ride-empty">Napaka pri prikazu.</div>`;
+  }
 }
 
 function goWeek(offset){
@@ -1337,6 +1374,18 @@ function weekOverviewHtml(){
 }
 
 function render(){
+  try{
+    renderInner();
+  }catch(e){
+    dlog(`render: EXCEPTION ${e.name}: ${e.message}`);
+    const content = document.getElementById("content");
+    if(content){
+      content.innerHTML = `<div class="status err">Napaka pri prikazu urnika. Osveži stran (zgornji del zaslona povleci navzdol).</div>`;
+    }
+  }
+}
+
+function renderInner(){
   const content = document.getElementById("content");
   const weekEnd = addDays(currentMonday, 4);
   const isCurrentWeek = isoKey(currentMonday) === isoKey(mondayOf(new Date()));

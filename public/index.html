@@ -672,6 +672,15 @@ function fmt(d){
   return d.toLocaleDateString("sl-SI", {day:"numeric", month:"numeric"});
 }
 function isoKey(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function legacyIsoKey(d){
+  // pre-fix key: toISOString() converts to UTC, so for any timezone ahead
+  // of UTC (e.g. Slovenia) a local-midnight Date always lands on the
+  // previous UTC day. Kept only to migrate data saved under the old key.
   return d.toISOString().slice(0,10);
 }
 
@@ -852,12 +861,29 @@ async function loadWeek(){
   const key = "week:" + isoKey(currentMonday);
   try{
     const res = await window.storage.get(key, true);
-    weekData = res ? JSON.parse(res.value) : emptyWeek();
+    weekData = (res && res.value) ? JSON.parse(res.value) : await loadLegacyWeek(key);
   }catch(e){
     weekData = emptyWeek();
   }
   loading = false;
   render();
+}
+
+async function loadLegacyWeek(correctKey){
+  // One-time migration: before the isoKey timezone fix, weeks were saved
+  // under a UTC-shifted key (see legacyIsoKey). If the correct key has
+  // nothing, check the old one and copy any data found forward.
+  const legacyKey = "week:" + legacyIsoKey(currentMonday);
+  if(legacyKey === correctKey) return emptyWeek();
+  try{
+    const legacyRes = await window.storage.get(legacyKey, true);
+    if(legacyRes && legacyRes.value){
+      const migrated = JSON.parse(legacyRes.value);
+      await window.storage.set(correctKey, JSON.stringify(migrated), true);
+      return migrated;
+    }
+  }catch(e){ /* fall through */ }
+  return emptyWeek();
 }
 
 async function saveWeek(){
@@ -876,11 +902,27 @@ async function saveWeek(){
 const SLOT_TIMES = { tja: { h: 16, m: 0, label: "Vožnja TJA" }, nazaj: { h: 17, m: 0, label: "Vožnja NAZAJ" } };
 
 async function fetchWeekDataFor(monday){
+  const correctKey = "week:" + isoKey(monday);
   try{
-    const res = await fetch("/api/week?key=" + encodeURIComponent("week:" + isoKey(monday)));
+    const res = await fetch("/api/week?key=" + encodeURIComponent(correctKey));
     if(!res.ok) return emptyWeek();
     const data = await res.json();
-    return (data && data.value) ? JSON.parse(data.value) : emptyWeek();
+    if(data && data.value) return JSON.parse(data.value);
+
+    const legacyKey = "week:" + legacyIsoKey(monday);
+    if(legacyKey === correctKey) return emptyWeek();
+    const legacyRes = await fetch("/api/week?key=" + encodeURIComponent(legacyKey));
+    if(!legacyRes.ok) return emptyWeek();
+    const legacyData = await legacyRes.json();
+    if(!legacyData || !legacyData.value) return emptyWeek();
+
+    const migrated = JSON.parse(legacyData.value);
+    fetch("/api/week", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: correctKey, value: JSON.stringify(migrated) })
+    }).catch(()=>{});
+    return migrated;
   }catch(e){ return emptyWeek(); }
 }
 

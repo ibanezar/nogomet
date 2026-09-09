@@ -888,7 +888,9 @@ async function loadLegacyWeek(correctKey){
     const legacyRes = await window.storage.get(legacyKey, true);
     if(legacyRes && legacyRes.value){
       const migrated = JSON.parse(legacyRes.value);
-      await window.storage.set(correctKey, JSON.stringify(migrated), true);
+      // Best-effort write-back, not awaited: a slow/blocked write must
+      // never hide data we've already successfully read.
+      window.storage.set(correctKey, JSON.stringify(migrated), true).catch(()=>{});
       return migrated;
     }
   }catch(e){ /* fall through */ }

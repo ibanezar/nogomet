@@ -27,6 +27,7 @@
     --danger:#B3462C;
   }
   *{box-sizing:border-box;}
+  [hidden]{display:none !important;}
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
   body{
     margin:0;
@@ -75,6 +76,48 @@
     color:var(--ink-soft);
   }
   header.top .route b{color:var(--ink);font-weight:600;}
+
+  .install-bar{
+    margin-bottom:14px;
+    background:var(--chalk);
+    border:1px solid var(--pitch);
+    padding:10px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .install-text{font-size:13px;font-weight:600;color:var(--ink);}
+  .install-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .install-btn{
+    background:var(--pitch);
+    color:#fff;
+    border:none;
+    padding:8px 14px;
+    min-height:36px;
+    font-size:13px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .install-btn:hover{background:var(--pitch-dark);}
+  .install-dismiss{
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    font-size:16px;
+    padding:4px 8px;
+    cursor:pointer;
+    min-height:36px;
+  }
+  .install-ios-tip{
+    margin-bottom:14px;
+    background:var(--chalk);
+    border:1px solid var(--line);
+    padding:10px 12px;
+    font-size:13px;
+    color:var(--ink);
+  }
 
   .next-ride-card{
     margin-bottom:22px;
@@ -473,6 +516,17 @@
       <div class="route">Rečica ob Savinji <b>→</b> Mozirje &nbsp;·&nbsp; Izak, Nace, Žak</div>
     </div>
   </header>
+  <div class="install-bar" id="install-bar" hidden>
+    <span class="install-text">📲 Dodaj to stran na domači zaslon za hiter dostop.</span>
+    <div class="install-actions">
+      <button class="install-btn" id="install-btn">Namesti</button>
+      <button class="install-dismiss" id="install-dismiss" aria-label="Zapri">✕</button>
+    </div>
+  </div>
+  <div class="install-ios-tip" id="install-ios-tip" hidden>
+    Na iPhone/iPad: tapni <strong>Deli</strong> (kvadrat s puščico) spodaj v brskalniku,
+    nato <strong>»Dodaj na Home zaslon«</strong>.
+  </div>
   <div class="next-ride-card" id="next-ride">Nalagam …</div>
   <div class="route-art">
     <svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pot od Rečice ob Savinji do Mozirja">
@@ -1145,6 +1199,57 @@ pollActiveLocation();
 setInterval(pollActiveLocation, 6000);
 refreshNextRide();
 setInterval(refreshNextRide, 20000);
+
+(function(){
+  const bar = document.getElementById("install-bar");
+  const btn = document.getElementById("install-btn");
+  const dismissBtn = document.getElementById("install-dismiss");
+  const iosTip = document.getElementById("install-ios-tip");
+  if(!bar || !btn || !dismissBtn || !iosTip) return;
+
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  if(isStandalone) return;
+
+  let dismissed = false;
+  try{ dismissed = sessionStorage.getItem("installDismissed") === "1"; }catch(e){}
+  if(dismissed) return;
+
+  let deferredPrompt = null;
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    bar.hidden = false;
+  });
+
+  const ua = navigator.userAgent;
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isSafari = /safari/i.test(ua) && !/crios|fxios|chrome/i.test(ua);
+  if(isIOS && isSafari){
+    bar.hidden = false;
+  }
+
+  btn.addEventListener("click", async () => {
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      bar.hidden = true;
+    } else {
+      iosTip.hidden = !iosTip.hidden;
+    }
+  });
+
+  dismissBtn.addEventListener("click", () => {
+    bar.hidden = true;
+    iosTip.hidden = true;
+    try{ sessionStorage.setItem("installDismissed", "1"); }catch(e){}
+  });
+
+  window.addEventListener("appinstalled", () => {
+    bar.hidden = true;
+  });
+})();
 </script>
 </body>
 </html>

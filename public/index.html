@@ -572,6 +572,21 @@
     margin-top:26px;
   }
   .status.err{color:var(--danger);}
+
+  .debug-log{
+    margin-top:16px;
+    padding:10px 12px;
+    background:#0E2036;
+    color:#8FE3B0;
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:10px;
+    line-height:1.5;
+    white-space:pre-wrap;
+    word-break:break-all;
+    max-height:220px;
+    overflow-y:auto;
+  }
+  .debug-log:empty{display:none;}
 </style>
 </head>
 <body>
@@ -631,15 +646,33 @@
 
   <div id="content">Nalagam …</div>
   <div class="status" id="status"></div>
+  <pre id="debug-log" class="debug-log"></pre>
 </div>
 
 <script>
+let debugLines = [];
+function dlog(msg){
+  debugLines.push(new Date().toLocaleTimeString() + " " + msg);
+  if(debugLines.length > 50) debugLines.shift();
+  const el = document.getElementById("debug-log");
+  if(el) el.textContent = debugLines.join("\n");
+}
+
 function fetchTimeout(url, options){
   const opts = options ? { ...options } : {};
   if(window.AbortSignal && AbortSignal.timeout){
     opts.signal = AbortSignal.timeout(10000);
   }
-  return fetch(url, opts);
+  const method = opts.method || "GET";
+  const start = Date.now();
+  dlog(`→ ${method} ${url}`);
+  return fetch(url, opts).then(res => {
+    dlog(`← ${method} ${url} [${res.status}] ${Date.now()-start}ms`);
+    return res;
+  }).catch(err => {
+    dlog(`✗ ${method} ${url} ${err.name}: ${err.message} (${Date.now()-start}ms)`);
+    throw err;
+  });
 }
 
 window.storage = {
@@ -867,14 +900,18 @@ function emptyWeek(){
 async function loadWeek(){
   loading = true; errorMsg = ""; render();
   const key = "week:" + isoKey(currentMonday);
+  dlog(`loadWeek: currentMonday=${currentMonday} key=${key}`);
   try{
     const res = await window.storage.get(key, true);
+    dlog(`loadWeek: storage.get(${key}) -> ${res ? "found value" : "empty"}`);
     weekData = (res && res.value) ? JSON.parse(res.value) : await loadLegacyWeek(key);
   }catch(e){
+    dlog(`loadWeek: EXCEPTION ${e.name}: ${e.message}`);
     if(!weekData) weekData = emptyWeek();
     errorMsg = "Nalaganje ni uspelo. Preveri povezavo in poskusi znova.";
   }
   loading = false;
+  dlog(`loadWeek: done, loading=false`);
   render();
 }
 
@@ -883,9 +920,11 @@ async function loadLegacyWeek(correctKey){
   // under a UTC-shifted key (see legacyIsoKey). If the correct key has
   // nothing, check the old one and copy any data found forward.
   const legacyKey = "week:" + legacyIsoKey(currentMonday);
+  dlog(`loadLegacyWeek: legacyKey=${legacyKey}`);
   if(legacyKey === correctKey) return emptyWeek();
   try{
     const legacyRes = await window.storage.get(legacyKey, true);
+    dlog(`loadLegacyWeek: storage.get(${legacyKey}) -> ${legacyRes ? "found value" : "empty"}`);
     if(legacyRes && legacyRes.value){
       const migrated = JSON.parse(legacyRes.value);
       // Best-effort write-back, not awaited: a slow/blocked write must
@@ -893,7 +932,7 @@ async function loadLegacyWeek(correctKey){
       window.storage.set(correctKey, JSON.stringify(migrated), true).catch(()=>{});
       return migrated;
     }
-  }catch(e){ /* fall through */ }
+  }catch(e){ dlog(`loadLegacyWeek: EXCEPTION ${e.name}: ${e.message}`); }
   return emptyWeek();
 }
 

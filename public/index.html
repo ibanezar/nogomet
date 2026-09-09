@@ -1200,6 +1200,10 @@ setInterval(pollActiveLocation, 6000);
 refreshNextRide();
 setInterval(refreshNextRide, 20000);
 
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("/sw.js").catch(()=>{});
+}
+
 (function(){
   const bar = document.getElementById("install-bar");
   const btn = document.getElementById("install-btn");

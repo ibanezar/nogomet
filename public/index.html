@@ -133,8 +133,38 @@
     opacity:0.85;
     margin-bottom:8px;
   }
+  .next-ride-leg{
+    padding-top:12px;
+    margin-top:12px;
+    border-top:1px solid rgba(255,255,255,0.18);
+  }
+  .next-ride-leg:first-of-type{padding-top:0;margin-top:0;border-top:none;}
+  .next-ride-leg-head{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.03em;
+    opacity:0.8;
+    margin-bottom:6px;
+  }
+  .next-ride-leg-time{margin-left:auto;font-weight:600;}
+  .next-ride-dir{
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+    color:#fff;
+  }
+  .next-ride-dir.tja{background:var(--pitch);}
+  .next-ride-dir.nazaj{background:var(--amber);}
   .next-ride-driver{
-    font-size:19px;
+    font-size:18px;
     font-weight:800;
     display:flex;
     align-items:center;
@@ -1019,13 +1049,11 @@ async function computeNextRide(){
       if(day.cancelled) continue;
       const date = addDays(monday, dayDef.key === "pon" ? 0 : 3);
 
-      for(const slotKey of ["tja","nazaj"]){
-        const t = SLOT_TIMES[slotKey];
-        const slotTime = new Date(date);
-        slotTime.setHours(t.h, t.m, 0, 0);
-        if(slotTime.getTime() > now.getTime()){
-          return { dayDef, date, slotKey, slot: day[slotKey], absentKids: day.absentKids };
-        }
+      // The day is still ahead of us as long as its last ride hasn't left.
+      const lastRide = new Date(date);
+      lastRide.setHours(SLOT_TIMES.nazaj.h, SLOT_TIMES.nazaj.m, 0, 0);
+      if(lastRide.getTime() > now.getTime()){
+        return { dayDef, date, day };
       }
     }
   }
@@ -1041,11 +1069,23 @@ function renderNextRide(info){
     return;
   }
 
-  const { dayDef, date, slotKey, slot, absentKids } = info;
-  const t = SLOT_TIMES[slotKey];
-  const timeStr = String(t.h).padStart(2,"0") + ":" + String(t.m).padStart(2,"0");
+  const { dayDef, date, day } = info;
   const isToday = isoKey(date) === isoKey(new Date());
   const dayLabel = isToday ? "Danes" : (dayDef.name + ", " + fmt(date));
+
+  el.innerHTML = `
+    <div class="next-ride-head">${dayLabel} · trening ${TIME}</div>
+    ${nextRideLegHtml(day, "tja")}
+    ${nextRideLegHtml(day, "nazaj")}
+  `;
+}
+
+function nextRideLegHtml(day, slotKey){
+  const slot = day[slotKey];
+  const t = SLOT_TIMES[slotKey];
+  const timeStr = String(t.h).padStart(2,"0") + ":" + String(t.m).padStart(2,"0");
+  const dirArrow = slotKey === "tja" ? "→" : "←";
+  const dirLabel = slotKey === "tja" ? "TJA" : "NAZAJ";
 
   let body;
   if(slot && slot.parent){
@@ -1055,16 +1095,22 @@ function renderNextRide(info){
     else if(slot.confirmed){ statusClass = "confirmed"; statusText = "potrjeno"; }
     body = `
       <div class="next-ride-driver">🚗 ${escapeHtml(slot.parent)} <span class="next-ride-status ${statusClass}">${statusText}</span></div>
-      <div class="kids-pills">${kidsPillsHtml(kidsGoing, absentKids)}</div>
+      <div class="kids-pills">${kidsPillsHtml(kidsGoing, day.absentKids)}</div>
       ${slot.contact ? `<div class="next-ride-contact">${escapeHtml(slot.contact)} ${contactLinksHtml(slot.contact)}</div>` : ""}
     `;
   } else {
     body = `<div class="next-ride-driver empty">🚗 Še ni voznika</div>`;
   }
 
-  el.innerHTML = `
-    <div class="next-ride-head">${dayLabel} · ${timeStr} — ${t.label}</div>
-    ${body}
+  return `
+    <div class="next-ride-leg">
+      <div class="next-ride-leg-head">
+        <span class="next-ride-dir ${slotKey}">${dirArrow}</span>
+        <span>${dirLabel}</span>
+        <span class="next-ride-leg-time">${timeStr}</span>
+      </div>
+      ${body}
+    </div>
   `;
 }
 

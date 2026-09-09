@@ -634,15 +634,23 @@
 </div>
 
 <script>
+function fetchTimeout(url, options){
+  const opts = options ? { ...options } : {};
+  if(window.AbortSignal && AbortSignal.timeout){
+    opts.signal = AbortSignal.timeout(10000);
+  }
+  return fetch(url, opts);
+}
+
 window.storage = {
   async get(key){
-    const res = await fetch("/api/week?key=" + encodeURIComponent(key));
+    const res = await fetchTimeout("/api/week?key=" + encodeURIComponent(key));
     if(!res.ok) return null;
     const data = await res.json();
     return (data && data.value != null) ? { value: data.value } : null;
   },
   async set(key, value){
-    const res = await fetch("/api/week", {
+    const res = await fetchTimeout("/api/week", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, value })
@@ -781,7 +789,7 @@ function stopSharing(){
   if(sharing){
     navigator.geolocation.clearWatch(sharing.watchId);
     const key = locationKey(sharing.dayKey, sharing.slotKey);
-    fetch("/api/location?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(()=>{});
+    fetchTimeout("/api/location?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(()=>{});
     sharing = null;
   }
   render();
@@ -789,7 +797,7 @@ function stopSharing(){
 
 async function postLocation(key, lat, lon){
   try{
-    await fetch("/api/location", {
+    await fetchTimeout("/api/location", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, lat, lon })
@@ -807,7 +815,7 @@ async function pollActiveLocation(){
   let best = null;
   for(const sk of candidates){
     try{
-      const res = await fetch("/api/location?key=" + encodeURIComponent(locationKey(dayKey, sk)));
+      const res = await fetchTimeout("/api/location?key=" + encodeURIComponent(locationKey(dayKey, sk)));
       if(!res.ok) continue;
       const data = await res.json();
       if(data && data.value){
@@ -863,7 +871,8 @@ async function loadWeek(){
     const res = await window.storage.get(key, true);
     weekData = (res && res.value) ? JSON.parse(res.value) : await loadLegacyWeek(key);
   }catch(e){
-    weekData = emptyWeek();
+    if(!weekData) weekData = emptyWeek();
+    errorMsg = "Nalaganje ni uspelo. Preveri povezavo in poskusi znova.";
   }
   loading = false;
   render();
@@ -904,20 +913,20 @@ const SLOT_TIMES = { tja: { h: 16, m: 0, label: "Vožnja TJA" }, nazaj: { h: 17,
 async function fetchWeekDataFor(monday){
   const correctKey = "week:" + isoKey(monday);
   try{
-    const res = await fetch("/api/week?key=" + encodeURIComponent(correctKey));
+    const res = await fetchTimeout("/api/week?key=" + encodeURIComponent(correctKey));
     if(!res.ok) return emptyWeek();
     const data = await res.json();
     if(data && data.value) return JSON.parse(data.value);
 
     const legacyKey = "week:" + legacyIsoKey(monday);
     if(legacyKey === correctKey) return emptyWeek();
-    const legacyRes = await fetch("/api/week?key=" + encodeURIComponent(legacyKey));
+    const legacyRes = await fetchTimeout("/api/week?key=" + encodeURIComponent(legacyKey));
     if(!legacyRes.ok) return emptyWeek();
     const legacyData = await legacyRes.json();
     if(!legacyData || !legacyData.value) return emptyWeek();
 
     const migrated = JSON.parse(legacyData.value);
-    fetch("/api/week", {
+    fetchTimeout("/api/week", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key: correctKey, value: JSON.stringify(migrated) })

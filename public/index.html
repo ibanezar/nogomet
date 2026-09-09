@@ -142,7 +142,18 @@
     flex-wrap:wrap;
   }
   .next-ride-driver.empty{opacity:0.75;font-weight:600;}
-  .next-ride-kids{font-size:14px;opacity:0.85;margin-top:4px;}
+  .next-ride-card .kids-pills{margin-top:8px;}
+  .next-ride-card .kid-pill{
+    background:rgba(255,255,255,0.16);
+    border-color:rgba(255,255,255,0.32);
+    color:#fff;
+  }
+  .next-ride-card .kid-pill.absent{
+    background:rgba(179,70,44,0.45);
+    border-color:rgba(179,70,44,0.7);
+    color:#fff;
+  }
+  .next-ride-card .kid-pill.empty{color:rgba(255,255,255,0.75);}
   .next-ride-contact{font-size:14px;opacity:0.85;margin-top:4px;display:flex;align-items:center;gap:6px;}
   .next-ride-contact .contact-link{filter:brightness(0) invert(1);}
   .next-ride-status{
@@ -261,10 +272,16 @@
     gap:10px;
     flex-wrap:wrap;
   }
-  .ride-status{font-size:13px;font-weight:600;}
-  .ride-status.pending{color:var(--ink-soft);}
-  .ride-status.confirmed{color:var(--amber-dark);}
-  .ride-status.needs-replacement{color:var(--danger);}
+  .ride-status{
+    display:inline-block;
+    font-size:12px;
+    font-weight:700;
+    padding:5px 11px;
+    border-radius:999px;
+  }
+  .ride-status.pending{background:var(--line);color:var(--ink-soft);}
+  .ride-status.confirmed{background:var(--amber);color:#fff;}
+  .ride-status.needs-replacement{background:var(--danger);color:#fff;}
   .ride-actions{display:flex;gap:8px;flex-wrap:wrap;}
   .confirm-btn, .takeover-btn{
     background:var(--amber);
@@ -393,16 +410,33 @@
 
   .slot{
     border-top:1px solid var(--line);
-    padding:12px 16px 14px;
+    border-left:3px solid transparent;
+    padding:14px 16px 16px;
   }
+  .slot.dir-tja{border-left-color:var(--pitch);}
+  .slot.dir-nazaj{border-left-color:var(--amber);}
   .slot-head{
     display:flex;
-    justify-content:space-between;
-    align-items:baseline;
-    margin-bottom:6px;
+    align-items:center;
+    gap:9px;
+    margin-bottom:10px;
   }
-  .slot-title{font-size:13px;font-weight:700;color:var(--ink-soft);}
-  .slot-time{font-size:12px;color:var(--ink-soft);}
+  .dir-badge{
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:13px;
+    font-weight:700;
+    color:#fff;
+  }
+  .dir-badge.tja{background:var(--pitch);}
+  .dir-badge.nazaj{background:var(--amber);}
+  .slot-title{flex:1;min-width:0;font-size:13px;font-weight:700;color:var(--ink);}
+  .slot-time{flex-shrink:0;font-size:12px;color:var(--ink-soft);}
 
   .assigned{
     display:flex;
@@ -410,10 +444,44 @@
     align-items:flex-start;
     gap:10px;
   }
-  .assigned .who{font-size:15px;font-weight:600;}
-  .assigned .kids{font-size:13px;color:var(--ink-soft);margin-top:2px;}
-  .assigned .contact{font-size:12px;color:var(--ink-soft);margin-top:2px;display:flex;align-items:center;gap:6px;}
-  .assigned .note{font-size:12px;color:var(--amber-dark);margin-top:4px;font-style:italic;}
+  .who-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .assigned .who{font-size:16px;font-weight:700;}
+  .icon-actions{display:flex;gap:6px;flex-shrink:0;}
+  .icon-btn{
+    background:none;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    font-size:14px;
+    line-height:1;
+    padding:0;
+    width:32px;
+    height:32px;
+    flex-shrink:0;
+    cursor:pointer;
+  }
+  .icon-btn:hover{border-color:var(--pitch);color:var(--pitch);}
+  .icon-btn.danger:hover{border-color:var(--danger);color:var(--danger);}
+
+  .kids-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .kid-pill{
+    background:var(--sage);
+    border:1px solid var(--line);
+    color:var(--ink);
+    font-size:12px;
+    font-weight:600;
+    padding:3px 10px;
+    border-radius:999px;
+  }
+  .kid-pill.absent{
+    background:#F6E9E4;
+    border-color:#E3C3B6;
+    color:var(--danger);
+    text-decoration:line-through;
+  }
+  .kid-pill.empty{color:var(--ink-soft);font-weight:500;background:none;border-style:dashed;}
+
+  .assigned .contact{font-size:12px;color:var(--ink-soft);margin-top:8px;display:flex;align-items:center;gap:6px;}
+  .assigned .note{font-size:12px;color:var(--amber-dark);margin-top:6px;font-style:italic;}
   .contact-link{
     text-decoration:none;
     font-size:15px;
@@ -421,7 +489,7 @@
     padding:4px;
   }
 
-  .edit-btn, .signup-btn, .clear-btn{
+  .signup-btn{
     border:1px solid var(--pitch);
     background:none;
     color:var(--pitch);
@@ -432,15 +500,14 @@
     cursor:pointer;
     white-space:nowrap;
   }
-  .edit-btn:hover, .signup-btn:hover{background:var(--pitch);color:#fff;}
-  .clear-btn{border-color:var(--line);color:var(--ink-soft);}
-  .clear-btn:hover{border-color:var(--danger);color:var(--danger);}
+  .signup-btn:hover{background:var(--pitch);color:#fff;}
 
   .empty-slot{
     display:flex;
     justify-content:space-between;
     align-items:center;
   }
+  .empty-slot .msg{display:flex;align-items:center;gap:8px;}
   .empty-slot .msg{font-size:14px;color:var(--ink-soft);}
 
   .form{margin-top:8px;}
@@ -868,7 +935,7 @@ function renderNextRide(info){
     else if(slot.confirmed){ statusClass = "confirmed"; statusText = "potrjeno"; }
     body = `
       <div class="next-ride-driver">🚗 ${escapeHtml(slot.parent)} <span class="next-ride-status ${statusClass}">${statusText}</span></div>
-      <div class="next-ride-kids">👦 ${kidsListHtml(kidsGoing, absentKids, " · ")}</div>
+      <div class="kids-pills">${kidsPillsHtml(kidsGoing, absentKids)}</div>
       ${slot.contact ? `<div class="next-ride-contact">${escapeHtml(slot.contact)} ${contactLinksHtml(slot.contact)}</div>` : ""}
     `;
   } else {
@@ -1014,22 +1081,27 @@ function slotView(day, dayKey, slotKey, label, time, liveEligible){
       rideActions = `<button class="takeover-btn" onclick="startEdit('${dayKey}','${slotKey}')">🙋 Prevzamem vožnjo</button>`;
     }
 
+    if(liveEligible && isOwner){
+      rideActions += `
+        <button class="share-btn ${isSharingThis ? "sharing" : ""}" onclick="toggleShareLocation('${dayKey}','${slotKey}')">
+          ${isSharingThis ? "⏹ Ustavi deljenje" : "📍 Deli lokacijo"}
+        </button>
+      `;
+    }
+
     inner = `
       <div class="assigned">
-        <div>
-          <div class="who">${escapeHtml(s.parent)}</div>
-          <div class="kids">${kidsListHtml(kidsGoing, day.absentKids, ", ")}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="who-row">
+            <span class="who">${escapeHtml(s.parent)}</span>
+            <span class="icon-actions">
+              <button class="icon-btn" title="Uredi" onclick="startEdit('${dayKey}','${slotKey}')">✏️</button>
+              <button class="icon-btn danger" title="Izbriši" onclick="clearSlot('${dayKey}','${slotKey}')">🗑️</button>
+            </span>
+          </div>
+          <div class="kids-pills">${kidsPillsHtml(kidsGoing, day.absentKids)}</div>
           ${s.contact ? `<div class="contact">${escapeHtml(s.contact)} ${contactLinksHtml(s.contact)}</div>` : ""}
           ${s.note ? `<div class="note">${escapeHtml(s.note)}</div>` : ""}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          ${(liveEligible && isOwner) ? `
-            <button class="share-btn ${isSharingThis ? "sharing" : ""}" onclick="toggleShareLocation('${dayKey}','${slotKey}')">
-              ${isSharingThis ? "⏹ Ustavi deljenje" : "📍 Deli lokacijo"}
-            </button>
-          ` : ""}
-          <button class="edit-btn" onclick="startEdit('${dayKey}','${slotKey}')">Uredi</button>
-          <button class="clear-btn" onclick="clearSlot('${dayKey}','${slotKey}')">Izbriši</button>
         </div>
       </div>
       <div class="ride-status-row">
@@ -1040,15 +1112,19 @@ function slotView(day, dayKey, slotKey, label, time, liveEligible){
   } else {
     inner = `
       <div class="empty-slot">
-        <div class="msg">Še nihče ni vpisan</div>
+        <div class="msg">🚗 Še nihče ni vpisan</div>
         <button class="signup-btn" onclick="startEdit('${dayKey}','${slotKey}')">Vpiši se</button>
       </div>
     `;
   }
 
+  const dirClass = slotKey === "tja" ? "tja" : "nazaj";
+  const dirArrow = slotKey === "tja" ? "→" : "←";
+
   return `
-    <div class="slot">
+    <div class="slot dir-${dirClass}">
       <div class="slot-head">
+        <span class="dir-badge ${dirClass}">${dirArrow}</span>
         <div class="slot-title">${label}</div>
         <div class="slot-time">${time}</div>
       </div>
@@ -1100,13 +1176,13 @@ function escapeHtml(str){
 }
 function escapeAttr(str){ return escapeHtml(str); }
 
-function kidsListHtml(kidsGoing, absentKids, sep){
-  if(!kidsGoing.length) return "brez otrok";
+function kidsPillsHtml(kidsGoing, absentKids){
+  if(!kidsGoing.length) return `<span class="kid-pill empty">brez otrok</span>`;
   return kidsGoing.map(k => {
     const idx = KIDS.indexOf(k);
     const isAbsent = absentKids && absentKids[idx];
-    return isAbsent ? `<span class="kid-absent">${escapeHtml(k)}</span>` : escapeHtml(k);
-  }).join(sep);
+    return `<span class="kid-pill${isAbsent ? " absent" : ""}">${escapeHtml(k)}</span>`;
+  }).join("");
 }
 
 function phoneDigits(contact){

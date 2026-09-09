@@ -605,10 +605,7 @@
       <button class="install-dismiss" id="install-dismiss" aria-label="Zapri">✕</button>
     </div>
   </div>
-  <div class="install-ios-tip" id="install-ios-tip" hidden>
-    Na iPhone/iPad: tapni <strong>Deli</strong> (kvadrat s puščico) spodaj v brskalniku,
-    nato <strong>»Dodaj na Home zaslon«</strong>.
-  </div>
+  <div class="install-ios-tip" id="install-ios-tip" hidden></div>
   <div class="next-ride-card" id="next-ride">Nalagam …</div>
   <div class="route-art">
     <svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pot od Rečice ob Savinji do Mozirja">
@@ -1428,26 +1425,41 @@ if("serviceWorker" in navigator){
   const iosTip = document.getElementById("install-ios-tip");
   if(!bar || !btn || !dismissBtn || !iosTip) return;
 
+  const ua = navigator.userAgent;
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-  if(isStandalone) return;
-
   let dismissed = false;
   try{ dismissed = sessionStorage.getItem("installDismissed") === "1"; }catch(e){}
-  if(dismissed) return;
+  dlog(`install: standalone=${isStandalone} dismissed=${dismissed} ua=${ua}`);
+
+  // Already installed (running from the home screen), or explicitly
+  // dismissed this session: nothing to offer.
+  if(isStandalone || dismissed) return;
 
   let deferredPrompt = null;
 
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     deferredPrompt = e;
+    dlog("install: beforeinstallprompt fired (native install available)");
     bar.hidden = false;
   });
 
-  const ua = navigator.userAgent;
-  const isIOS = /iphone|ipad|ipod/i.test(ua);
-  const isSafari = /safari/i.test(ua) && !/crios|fxios|chrome/i.test(ua);
-  if(isIOS && isSafari){
-    bar.hidden = false;
+  // Don't depend on beforeinstallprompt: Brave, Firefox and iOS Safari
+  // never fire it, and Chrome only fires it when it feels like it. Show
+  // the bar regardless — the button falls back to manual instructions.
+  setTimeout(() => {
+    if(bar.hidden){
+      dlog("install: no beforeinstallprompt after 2s, showing manual instructions");
+      bar.hidden = false;
+    }
+  }, 2000);
+
+  function manualInstructions(){
+    const isIOS = /iphone|ipad|ipod/i.test(ua);
+    if(isIOS){
+      return `Tapni <strong>Deli</strong> (kvadratek s puščico navzgor) spodaj v brskalniku, nato izberi <strong>»Dodaj na začetni zaslon«</strong>.`;
+    }
+    return `Tapni <strong>meni brskalnika</strong> (⋮ ali ≡ zgoraj desno), nato izberi <strong>»Dodaj na začetni zaslon«</strong> oz. <strong>»Namesti aplikacijo«</strong>.`;
   }
 
   btn.addEventListener("click", async () => {
@@ -1456,9 +1468,10 @@ if("serviceWorker" in navigator){
       await deferredPrompt.userChoice;
       deferredPrompt = null;
       bar.hidden = true;
-    } else {
-      iosTip.hidden = !iosTip.hidden;
+      return;
     }
+    iosTip.innerHTML = manualInstructions();
+    iosTip.hidden = !iosTip.hidden;
   });
 
   dismissBtn.addEventListener("click", () => {
